@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  Share,
+  Platform,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../hooks/useLanguage';
@@ -16,8 +18,60 @@ import { useLocation } from '../hooks/useLocation';
 import { useWebhook } from '../hooks/useWebhook';
 import { useIncidents } from '../hooks/useIncidents';
 import { colors, fontSizes, spacing, borderRadius, minTouchTarget } from '../constants/theme';
-import { SituationType } from '../types';
-import { mapsUrl } from '../lib/geo';
+import { SituationType, EmergencyContact } from '../types';
+import { mapsUrl, haversineDistance } from '../lib/geo';
+import { FIRST_AID_GUIDES } from '../lib/firstAidData';
+
+// ── Situation → hospital mapping ──────────────────────────────────────────────
+const HOSPITAL_MAP: Record<string, { name_en: string; name_ne: string; phone: string; lat: number; lng: number }> = {
+  chest_pain: {
+    name_en: 'Shahid Gangalal National Heart Centre',
+    name_ne: 'शहीद गंगालाल राष्ट्रिय हृदय केन्द्र',
+    phone: '01-4371322',
+    lat: 27.7365, lng: 85.3226,
+  },
+  accident: {
+    name_en: 'National Trauma Centre',
+    name_ne: 'राष्ट्रिय ट्रमा केन्द्र',
+    phone: '01-4412505',
+    lat: 27.7350, lng: 85.3310,
+  },
+  choking: {
+    name_en: 'Tribhuvan University Teaching Hospital',
+    name_ne: 'त्रिभुवन विश्वविद्यालय शिक्षण अस्पताल',
+    phone: '01-4412303',
+    lat: 27.7321, lng: 85.3319,
+  },
+  unconscious: {
+    name_en: 'Tribhuvan University Teaching Hospital',
+    name_ne: 'त्रिभुवन विश्वविद्यालय शिक्षण अस्पताल',
+    phone: '01-4412303',
+    lat: 27.7321, lng: 85.3319,
+  },
+  seizure: {
+    name_en: 'Tribhuvan University Teaching Hospital',
+    name_ne: 'त्रिभुवन विश्वविद्यालय शिक्षण अस्पताल',
+    phone: '01-4412303',
+    lat: 27.7321, lng: 85.3319,
+  },
+};
+
+// Default fallback hospital
+const DEFAULT_HOSPITAL = {
+  name_en: 'Bir Hospital',
+  name_ne: 'वीर अस्पताल',
+  phone: '01-4221119',
+  lat: 27.7041, lng: 85.3131,
+};
+
+// ── Situation → first aid guide ───────────────────────────────────────────────
+const GUIDE_MAP: Record<string, string> = {
+  unconscious: 'cpr',
+  chest_pain: 'heartAttack',
+  accident: 'roadAccident',
+  choking: 'choking',
+  seizure: 'seizure',
+};
 
 const SITUATIONS: { key: SituationType; en: string; ne: string }[] = [
   { key: 'unconscious', en: 'Unconscious / Not breathing', ne: 'बेहोश / सास फेर्न गाह्रो' },
@@ -28,7 +82,7 @@ const SITUATIONS: { key: SituationType; en: string; ne: string }[] = [
   { key: 'other', en: 'Other', ne: 'अन्य' },
 ];
 
-type Step = 'select' | 'location' | 'confirm' | 'sent';
+type Step = 'select' | 'location' | 'action';
 
 interface Props {
   navigation: any;
@@ -39,6 +93,7 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
   const isFire = route?.params?.type === 'fire';
   const { user } = useAuth();
   const { language, t } = useLanguage();
+  const isNe = language === 'ne';
   const { location, loading: locLoading, requestLocation } = useLocation();
   const { dispatchNASAlert } = useWebhook();
   const { createIncident } = useIncidents();
@@ -48,15 +103,26 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
   const [otherText, setOtherText] = useState('');
   const [landmark, setLandmark] = useState('');
   const [sending, setSending] = useState(false);
-  const [responderCount, setResponderCount] = useState(0);
+
+  const contacts: EmergencyContact[] = (user?.emergency_contacts as EmergencyContact[]) ?? [];
 
   const situationLabel = (): string => {
-    if (isFire) return language === 'ne' ? 'आगो' : 'Fire';
+    if (isFire) return isNe ? 'आगो' : 'Fire';
     if (!situation) return '';
     const found = SITUATIONS.find((s) => s.key === situation);
-    if (!found) return '';
-    return language === 'ne' ? found.ne : found.en;
+    return found ? (isNe ? found.ne : found.en) : '';
   };
+
+  // Get recommended hospital based on situation
+  const recommendedHospital = situation
+    ? (HOSPITAL_MAP[situation] ?? DEFAULT_HOSPITAL)
+    : DEFAULT_HOSPITAL;
+
+  // Get relevant first aid guide
+  const guideId = situation ? GUIDE_MAP[situation] : null;
+  const firstAidGuide = guideId
+    ? FIRST_AID_GUIDES.find((g) => g.id === guideId)
+    : null;
 
   const sendAlert = async () => {
     if (!location) {
@@ -66,9 +132,8 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
     setSending(true);
     const summary = situation === 'other' ? otherText : situationLabel();
     try {
-      let count = 0;
       try {
-        const incident = await createIncident({
+        await createIncident({
           type: isFire ? 'fire' : 'health',
           reported_by: user?.id ?? '',
           lat: location.lat,
@@ -76,11 +141,9 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
           landmark_description: landmark,
           situation_summary: summary,
         });
-        count = incident.responder_count ?? 0;
       } catch {
-        // Supabase unavailable — continue with direct webhook
+        // Supabase unavailable — continue with webhook
       }
-      setResponderCount(count);
 
       await dispatchNASAlert({
         situation: summary,
@@ -89,13 +152,28 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
         lng: location.lng,
         phone: user?.phone,
       });
-
-      setStep('sent');
     } catch {
-      // Even on full failure, show sent screen with direct call option
-      setStep('sent');
+      // Even on failure, show action screen with call option
     } finally {
       setSending(false);
+      setStep('action');
+    }
+  };
+
+  // Share location with emergency contacts
+  const shareWithContacts = async () => {
+    if (!location) return;
+    const mapLink = `https://maps.google.com/?q=${location.lat},${location.lng}`;
+    const name = user?.full_name ?? 'Someone';
+
+    const message = isNe
+      ? `आपतकाल! ${name} लाई काठमाडौंमा सहायता चाहिन्छ।\nस्थान: ${mapLink}\nSahayogi मार्फत पठाइएको`
+      : `EMERGENCY! ${name} needs help in Kathmandu.\nLocation: ${mapLink}\nSent via Sahayogi`;
+
+    try {
+      await Share.share({ message });
+    } catch {
+      // user cancelled share
     }
   };
 
@@ -103,8 +181,17 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => step === 'select' ? navigation.goBack() : setStep(step === 'location' ? 'select' : 'location')} style={styles.backBtn}>
-          <Text style={styles.backText}>← {t('common.back')}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            if (step === 'select') navigation.goBack();
+            else if (step === 'location') setStep('select');
+            else setStep('location');
+          }}
+          style={styles.backBtn}
+        >
+          <Text style={styles.backText}>
+            ← {step === 'action' ? '' : t('common.back')}
+          </Text>
         </TouchableOpacity>
         <Text style={styles.title}>
           {isFire ? t('home.fireOther') : t('health.title')}
@@ -113,11 +200,11 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
 
-        {/* Step 1: Select situation */}
+        {/* ── Step 1: Select situation ── */}
         {step === 'select' && (
           <View>
             <Text style={styles.stepLabel}>
-              {t('health.step')} 1 {t('health.of')} 3 — {t('health.selectSituation')}
+              {t('health.step')} 1 {t('health.of')} 2 — {t('health.selectSituation')}
             </Text>
             {!isFire && SITUATIONS.map((s) => (
               <TouchableOpacity
@@ -126,7 +213,7 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
                 onPress={() => setSituation(s.key)}
               >
                 <Text style={[styles.situationText, situation === s.key && styles.situationTextSelected]}>
-                  {language === 'ne' ? s.ne : s.en}
+                  {isNe ? s.ne : s.en}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -137,14 +224,13 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
                 value={otherText}
                 onChangeText={setOtherText}
                 multiline
+                placeholderTextColor="#9E9E9E"
               />
             )}
             {isFire && (
-              <TouchableOpacity
-                style={[styles.situationBtn, styles.situationSelected]}
-              >
+              <TouchableOpacity style={[styles.situationBtn, styles.situationSelected]}>
                 <Text style={styles.situationTextSelected}>
-                  {language === 'ne' ? '🔥 आगो / अन्य' : '🔥 Fire / Other'}
+                  {isNe ? '🔥 आगो / अन्य' : '🔥 Fire / Other'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -158,11 +244,11 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Step 2: Location */}
+        {/* ── Step 2: Location confirmation ── */}
         {step === 'location' && (
           <View>
             <Text style={styles.stepLabel}>
-              {t('health.step')} 2 {t('health.of')} 3 — {t('health.confirmLocation')}
+              {t('health.step')} 2 {t('health.of')} 2 — {t('health.confirmLocation')}
             </Text>
             <View style={styles.locationCard}>
               {locLoading ? (
@@ -191,33 +277,8 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
               value={landmark}
               onChangeText={setLandmark}
               multiline
+              placeholderTextColor="#9E9E9E"
             />
-            <TouchableOpacity
-              style={styles.nextBtn}
-              onPress={() => setStep('confirm')}
-            >
-              <Text style={styles.nextBtnText}>{t('common.next')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Step 3: Confirm */}
-        {step === 'confirm' && (
-          <View>
-            <Text style={styles.stepLabel}>
-              {t('health.step')} 3 {t('health.of')} 3
-            </Text>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryItem}>
-                🚨 {situationLabel()}
-              </Text>
-              {location && (
-                <Text style={styles.summaryItem}>
-                  📍 {location.address || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`}
-                </Text>
-              )}
-              {landmark ? <Text style={styles.summaryItem}>🏠 {landmark}</Text> : null}
-            </View>
             <TouchableOpacity
               style={[styles.sendBtn, sending && styles.disabledBtn]}
               onPress={sendAlert}
@@ -232,30 +293,99 @@ export default function HealthEmergencyScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Sent confirmation */}
-        {step === 'sent' && (
-          <View style={styles.sentContainer}>
-            <Text style={styles.sentIcon}>✅</Text>
-            <Text style={styles.sentTitle}>{t('health.alertSent')}</Text>
-            {responderCount > 0 && (
-              <Text style={styles.sentSubtitle}>
-                {responderCount} {t('health.respondersNotified')}
-              </Text>
-            )}
-            <Text style={styles.helpText}>{t('health.helpIsOnWay')}</Text>
+        {/* ── Step 3: Action screen ── */}
+        {step === 'action' && (
+          <View style={styles.actionContainer}>
 
+            {/* a) Call 102 — largest, pulsing red */}
             <TouchableOpacity
-              style={[styles.callBtn]}
+              style={styles.call102Btn}
               onPress={() => Linking.openURL('tel:102')}
+              activeOpacity={0.85}
             >
-              <Text style={styles.callBtnText}>🚑 {t('health.callNAS')}</Text>
+              <Text style={styles.call102Icon}>🚑</Text>
+              <Text style={styles.call102Text}>
+                {isNe ? '१०२ मा फोन गर्नुहोस्' : 'Call 102 Now'}
+              </Text>
+              <Text style={styles.call102Sub}>
+                {isNe ? 'एम्बुलेन्स बोलाउन थिच्नुहोस्' : 'Tap to call ambulance'}
+              </Text>
             </TouchableOpacity>
 
+            {/* b) Recommended hospital */}
+            <View style={styles.hospitalCard}>
+              <Text style={styles.hospitalLabel}>
+                {isNe ? 'सिफारिस गरिएको अस्पताल' : 'Recommended Hospital'}
+              </Text>
+              <Text style={styles.hospitalSub}>
+                {isNe ? 'तपाईंको अवस्थामा आधारित' : 'Based on your situation'}
+              </Text>
+              <Text style={styles.hospitalName}>
+                {isNe ? recommendedHospital.name_ne : recommendedHospital.name_en}
+              </Text>
+              <View style={styles.hospitalActions}>
+                <TouchableOpacity
+                  style={[styles.hospBtn, { backgroundColor: colors.safeGreen }]}
+                  onPress={() => Linking.openURL(`tel:${recommendedHospital.phone}`)}
+                >
+                  <Text style={styles.hospBtnText}>📞 {recommendedHospital.phone}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.hospBtn, { backgroundColor: colors.policeBlue }]}
+                  onPress={() => {
+                    const url = Platform.OS === 'ios'
+                      ? `maps://maps.apple.com/?daddr=${recommendedHospital.lat},${recommendedHospital.lng}`
+                      : `geo:${recommendedHospital.lat},${recommendedHospital.lng}?q=${encodeURIComponent(recommendedHospital.name_en)}`;
+                    Linking.openURL(url).catch(() =>
+                      Linking.openURL(`https://maps.google.com/?q=${recommendedHospital.lat},${recommendedHospital.lng}`)
+                    );
+                  }}
+                >
+                  <Text style={styles.hospBtnText}>🗺️ {isNe ? 'दिशा' : 'Directions'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* c) Share with emergency contacts */}
             <TouchableOpacity
-              style={styles.homeBtn}
-              onPress={() => navigation.navigate('Home')}
+              style={styles.shareBtn}
+              onPress={shareWithContacts}
             >
-              <Text style={styles.homeBtnText}>{t('common.done')}</Text>
+              <Text style={styles.shareBtnText}>
+                📤 {isNe ? 'सम्पर्कहरूलाई सूचित गर्नुहोस्' : 'Notify your contacts'}
+              </Text>
+              {contacts.length > 0 && (
+                <Text style={styles.shareSubText}>
+                  {contacts.map((c) => c.name).join(', ')}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* d) Relevant first aid guide */}
+            {firstAidGuide && (
+              <TouchableOpacity
+                style={styles.guideCard}
+                onPress={() => navigation.navigate('FirstAidGuide', { guide: firstAidGuide })}
+              >
+                <Text style={styles.guideIcon}>{firstAidGuide.icon}</Text>
+                <View style={styles.guideInfo}>
+                  <Text style={styles.guideTitle}>
+                    {isNe ? firstAidGuide.titleNe : firstAidGuide.titleEn}
+                  </Text>
+                  <Text style={styles.guideSub}>
+                    {isNe ? 'सम्बन्धित प्राथमिक उपचार चरणहरू हेर्नुहोस्' : 'View relevant first aid steps'}
+                  </Text>
+                </View>
+                <Text style={styles.guideChevron}>›</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Done button */}
+            <TouchableOpacity
+              style={styles.doneBtn}
+              onPress={() => navigation.navigate('Main')}
+            >
+              <Text style={styles.doneBtnText}>{t('common.done')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -338,14 +468,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     marginBottom: spacing.sm,
   },
-  summaryCard: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  summaryItem: { fontSize: fontSizes.md, color: colors.darkText },
   sendBtn: {
     backgroundColor: colors.emergencyRed,
     borderRadius: borderRadius.md,
@@ -360,33 +482,77 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   sendBtnText: { color: colors.white, fontSize: fontSizes.xl, fontWeight: '900', letterSpacing: 1 },
-  sentContainer: { alignItems: 'center', paddingTop: spacing.xl },
-  sentIcon: { fontSize: 72, marginBottom: spacing.md },
-  sentTitle: { fontSize: fontSizes.xxl, fontWeight: '900', color: colors.safeGreen, marginBottom: spacing.xs },
-  sentSubtitle: { fontSize: fontSizes.md, color: colors.lightText, marginBottom: spacing.md },
-  helpText: { fontSize: fontSizes.lg, color: colors.darkText, fontWeight: '600', marginBottom: spacing.xl, textAlign: 'center' },
-  callBtn: {
+
+  // ── Action screen ──
+  actionContainer: { gap: spacing.md },
+
+  call102Btn: {
     backgroundColor: colors.emergencyRed,
-    borderRadius: borderRadius.md,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    marginBottom: spacing.sm,
-    minHeight: minTouchTarget,
-    justifyContent: 'center',
-    width: '100%',
+    borderRadius: borderRadius.lg,
+    paddingVertical: 28,
     alignItems: 'center',
+    gap: spacing.xs,
+    shadowColor: colors.emergencyRed,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  callBtnText: { color: colors.white, fontSize: fontSizes.lg, fontWeight: '700' },
-  homeBtn: {
+  call102Icon: { fontSize: 48 },
+  call102Text: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: 1 },
+  call102Sub: { color: 'rgba(255,255,255,0.75)', fontSize: 14 },
+
+  hospitalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.safeGreen,
+    gap: spacing.xs,
+  },
+  hospitalLabel: { fontSize: 11, fontWeight: '700', color: colors.lightText, textTransform: 'uppercase', letterSpacing: 0.5 },
+  hospitalSub: { fontSize: 12, color: colors.lightText },
+  hospitalName: { fontSize: fontSizes.lg, fontWeight: '900', color: colors.darkText, marginTop: 4 },
+  hospitalActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
+  hospBtn: { flex: 1, paddingVertical: 12, borderRadius: borderRadius.md, alignItems: 'center' },
+  hospBtnText: { color: '#FFFFFF', fontSize: fontSizes.sm, fontWeight: '700' },
+
+  shareBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    borderWidth: 2,
+    borderColor: colors.policeBlue,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  shareBtnText: { fontSize: fontSizes.md, fontWeight: '800', color: colors.policeBlue },
+  shareSubText: { fontSize: 12, color: colors.lightText },
+
+  guideCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    gap: spacing.md,
+  },
+  guideIcon: { fontSize: 32 },
+  guideInfo: { flex: 1, gap: 2 },
+  guideTitle: { fontSize: fontSizes.md, fontWeight: '800', color: colors.darkText },
+  guideSub: { fontSize: 12, color: colors.lightText },
+  guideChevron: { fontSize: 24, color: colors.lightText, fontWeight: '700' },
+
+  doneBtn: {
     borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
     paddingVertical: 14,
-    paddingHorizontal: 32,
+    alignItems: 'center',
     minHeight: minTouchTarget,
     justifyContent: 'center',
-    width: '100%',
-    alignItems: 'center',
   },
-  homeBtnText: { color: colors.darkText, fontSize: fontSizes.md, fontWeight: '600' },
+  doneBtnText: { color: colors.darkText, fontSize: fontSizes.md, fontWeight: '600' },
 });

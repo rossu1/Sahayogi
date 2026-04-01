@@ -24,6 +24,14 @@ export type SituationType =
   | 'seizure'
   | 'other';
 
+export type Relationship = 'family' | 'friend' | 'neighbour';
+
+export interface EmergencyContact {
+  name: string;
+  phone: string;
+  relationship: Relationship;
+}
+
 export interface User {
   id: string;
   phone: string;
@@ -35,6 +43,7 @@ export interface User {
   current_lng: number | null;
   last_seen: string;
   language_preference: Language;
+  emergency_contacts: EmergencyContact[];
   created_at: string;
 }
 

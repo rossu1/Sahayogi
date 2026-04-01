@@ -141,8 +141,8 @@ export const ne = {
     english: 'English',
     shakeToAlert: 'हल्लाउनुहोस् सूचना',
     shakeDescription: 'मौन प्रहरी सूचना पठाउन फोन ३ पटक हल्लाउनुहोस्',
-    responderStatus: 'प्रतिक्रियाकर्ता स्थिति',
-    activeResponder: 'सक्रिय प्रतिक्रियाकर्ता',
+    iAmTrained: 'म प्रशिक्षित छु',
+    firstAidTraining: 'प्राथमिक उपचार तालिम छ',
     qualification: 'योग्यता',
     qualifications: {
       doctor: 'डाक्टर',
@@ -152,14 +152,52 @@ export const ne = {
       first_aid_trained: 'प्राथमिक उपचार प्रशिक्षित',
       none: 'कुनै पनि होइन',
     },
+    trainedHelperMessage: 'तपाईं हाम्रो प्रशिक्षित सहयोगी नेटवर्कमा हुनुहुन्छ',
     phoneNumber: 'फोन नम्बर',
     emergencyContacts: 'आपतकालीन सम्पर्कहरू',
     addContact: 'सम्पर्क थप्नुहोस्',
     contactName: 'नाम',
     contactPhone: 'फोन',
     about: 'सहायोगीको बारेमा',
-    aboutText: 'सहायोगी काठमाडौं, नेपालको लागि एउटा नागरिक आपतकालीन एप हो। यसले सामुदायिक प्रथम प्रतिक्रियाकर्ताहरूलाई जोड्छ, मौन प्रहरी सूचना सक्षम गर्छ, र छिटो एम्बुलेन्स अनुरोध सुगम बनाउँछ।',
+    aboutText: 'सहायोगी काठमाडौं, नेपालको लागि एउटा नागरिक आपतकालीन एप हो। यसले सही अस्पताल खोज्न, सहायता बोलाउन, र प्राथमिक उपचार मार्गदर्शन दिन्छ।',
     version: 'संस्करण',
+  },
+
+  // Emergency Contacts
+  emergencyContacts: {
+    title: 'आपतकालीन सम्पर्क',
+    subtitle: 'तपाईंको भरोसाका मान्छेहरू',
+    addContacts: 'सम्पर्क थप्नुहोस्',
+    autoNotify: 'आपतकालमा स्वतः सूचित गरिन्छ',
+    maxContacts: 'अधिकतम ३ सम्पर्कहरू',
+    name: 'नाम',
+    phone: 'फोन नम्बर',
+    relationship: 'सम्बन्ध',
+    family: 'परिवार',
+    friend: 'साथी',
+    neighbour: 'छिमेकी',
+    save: 'सुरक्षित गर्नुहोस्',
+    remove: 'हटाउनुहोस्',
+    notifyContacts: 'सम्पर्कहरूलाई सूचित गर्नुहोस्',
+    notifyMessage: 'आपतकाल! {name} लाई काठमाडौंमा सहायता चाहिन्छ।\nस्थान: {mapsUrl}\nSahayogi मार्फत पठाइएको',
+    contactSaved: 'सम्पर्क सुरक्षित भयो',
+    contactRemoved: 'सम्पर्क हटाइयो',
+  },
+
+  // Community
+  community: {
+    trainedHelpers: 'काठमाडौंमा {count} जना प्रशिक्षित सहयोगीहरू दर्ता भएका छन्',
+  },
+
+  // Health Emergency Action Screen
+  healthAction: {
+    callNow: '१०२ मा फोन गर्नुहोस्',
+    callPulsing: 'एम्बुलेन्स बोलाउन थिच्नुहोस्',
+    recommendedHospital: 'सिफारिस गरिएको अस्पताल',
+    basedOnSituation: 'तपाईंको अवस्थामा आधारित',
+    shareWithContacts: 'आपतकालीन सम्पर्कहरूसँग स्थान साझा गर्नुहोस्',
+    firstAidGuide: 'प्राथमिक उपचार',
+    viewGuide: 'सम्बन्धित प्राथमिक उपचार चरणहरू हेर्नुहोस्',
   },
 
   // Onboarding

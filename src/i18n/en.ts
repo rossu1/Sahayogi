@@ -141,8 +141,8 @@ export const en = {
     english: 'English',
     shakeToAlert: 'Shake to Alert',
     shakeDescription: 'Shake phone 3 times to send silent police alert',
-    responderStatus: 'Responder Status',
-    activeResponder: 'Active Responder',
+    iAmTrained: 'I am trained',
+    firstAidTraining: 'I have first aid training',
     qualification: 'Qualification',
     qualifications: {
       doctor: 'Doctor',
@@ -152,14 +152,52 @@ export const en = {
       first_aid_trained: 'First Aid Trained',
       none: 'None',
     },
+    trainedHelperMessage: 'You are part of our trained helper network',
     phoneNumber: 'Phone Number',
     emergencyContacts: 'Emergency Contacts',
     addContact: 'Add Contact',
     contactName: 'Name',
     contactPhone: 'Phone',
     about: 'About Sahayogi',
-    aboutText: 'Sahayogi is a civic emergency app for Kathmandu, Nepal. It connects community first responders, enables silent police alerts, and facilitates quick ambulance requests.',
+    aboutText: 'Sahayogi is a civic emergency app for Kathmandu, Nepal. It helps you find the right hospital, call for help, and provides first aid guidance.',
     version: 'Version',
+  },
+
+  // Emergency Contacts
+  emergencyContacts: {
+    title: 'Emergency Contacts',
+    subtitle: 'Your trusted people',
+    addContacts: 'Add contacts',
+    autoNotify: 'Notified automatically in emergencies',
+    maxContacts: 'Maximum 3 contacts',
+    name: 'Name',
+    phone: 'Phone number',
+    relationship: 'Relationship',
+    family: 'Family',
+    friend: 'Friend',
+    neighbour: 'Neighbour',
+    save: 'Save',
+    remove: 'Remove',
+    notifyContacts: 'Notify your contacts',
+    notifyMessage: 'EMERGENCY! {name} needs help in Kathmandu.\nLocation: {mapsUrl}\nSent via Sahayogi',
+    contactSaved: 'Contact saved',
+    contactRemoved: 'Contact removed',
+  },
+
+  // Community
+  community: {
+    trainedHelpers: '{count} trained helpers registered in Kathmandu',
+  },
+
+  // Health Emergency Action Screen
+  healthAction: {
+    callNow: 'Call 102 Now',
+    callPulsing: 'Tap to call ambulance',
+    recommendedHospital: 'Recommended Hospital',
+    basedOnSituation: 'Based on your situation',
+    shareWithContacts: 'Share location with emergency contacts',
+    firstAidGuide: 'First Aid Guide',
+    viewGuide: 'View relevant first aid steps',
   },
 
   // Onboarding

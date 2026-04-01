@@ -1,31 +1,27 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Linking,
-  Platform,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../hooks/useLanguage';
 import { useShakeDetect } from '../hooks/useShakeDetect';
-import { useResponder } from '../hooks/useResponder';
+import { supabase, TABLES } from '../lib/supabase';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { EmergencyContact } from '../types';
 import { colors, fontSizes, spacing, borderRadius } from '../constants/theme';
 
-// Minimum touch targets — primary: 96px, secondary: 72px, utility: 64px
 const H_PRIMARY = 112;
 const H_SECONDARY = 80;
 const H_UTILITY = 64;
 
-interface HomeScreenProps {
-  navigation: any;
-}
+interface HomeScreenProps { navigation: any; }
 
 interface EmergencyAction {
   labelNe: string;
@@ -76,22 +72,26 @@ const QUICK_DIAL = [
   { number: '101', labelNe: 'दमकल', labelEn: 'Fire', icon: '🚒', color: colors.fireOrange },
 ];
 
-const UTILITIES = [
-  { icon: '🏥', labelNe: 'नजिकको अस्पताल', labelEn: 'Nearby Hospitals', route: 'Hospitals' },
-  { icon: '🩺', labelNe: 'प्राथमिक उपचार', labelEn: 'First Aid', route: 'FirstAid' },
-  { icon: '⚙️', labelNe: 'सेटिङ', labelEn: 'Settings', route: 'Settings' },
-];
-
 export default function HomeScreen({ navigation }: HomeScreenProps) {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
-  const { toggleDuty } = useResponder(user?.id);
-  const [onDuty, setOnDuty] = useState(user?.is_active_responder ?? false);
   const [shakeEnabled] = useState(false);
   const [shakeCountdown, setShakeCountdown] = useState<number | null>(null);
+  const [trainedCount, setTrainedCount] = useState<number | null>(null);
 
   const isNe = language === 'ne';
-  const isResponder = user?.role === 'responder' || user?.role === 'admin';
+  const contacts: EmergencyContact[] = (user?.emergency_contacts as EmergencyContact[]) ?? [];
+
+  // Fetch trained helper count
+  useEffect(() => {
+    (async () => {
+      const { count, error } = await supabase
+        .from(TABLES.USERS)
+        .select('*', { count: 'exact', head: true })
+        .neq('qualification', 'none');
+      if (!error && count != null) setTrainedCount(count);
+    })();
+  }, []);
 
   const handleShake = useCallback(() => {
     let count = 5;
@@ -109,20 +109,21 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   useShakeDetect(shakeEnabled, handleShake);
 
-  const toggleResponderDuty = async (val: boolean) => {
-    setOnDuty(val);
-    await toggleDuty(val);
-    await refreshUser();
-  };
-
   const navigate = (route: string, params?: object) =>
     navigation.navigate(route, params);
+
+  const initials = (name: string) => {
+    const parts = name.trim().split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[1][0]).toUpperCase()
+      : name.slice(0, 2).toUpperCase();
+  };
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#1A1A1A" />
 
-      {/* ── Fixed header ── */}
+      {/* Header */}
       <SafeAreaView edges={['top']} style={styles.headerWrap}>
         <View style={styles.header}>
           <View>
@@ -131,25 +132,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
           <LanguageToggle language={language} onToggle={setLanguage} />
         </View>
-
-        {/* On-duty badge — only shown when active */}
-        {isResponder && onDuty && (
-          <View style={styles.onDutyStrip}>
-            <View style={styles.pulseDot} />
-            <Text style={styles.onDutyText}>
-              {isNe ? 'ड्युटीमा — सक्रिय' : 'On duty — Active'}
-            </Text>
-          </View>
-        )}
       </SafeAreaView>
 
-      {/* ── Scrollable body ── */}
+      {/* Scrollable body */}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-
         {/* Primary: Health Emergency */}
         <TouchableOpacity
           style={[styles.primaryBtn, { backgroundColor: PRIMARY_ACTION.color }]}
@@ -210,54 +200,72 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
         </TouchableOpacity>
 
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Responder duty toggle */}
-        {isResponder && (
-          <View style={[styles.dutyCard, onDuty && styles.dutyCardActive]}>
-            <View style={styles.dutyInfo}>
-              <Text style={[styles.dutyTitle, onDuty && styles.dutyTitleActive]}>
-                {isNe ? 'म प्रतिक्रियाकर्ता हुँ' : 'I am a Responder'}
-              </Text>
-              <Text style={styles.dutyStatus}>
-                {onDuty
-                  ? (isNe ? 'अहिले ड्युटीमा छु' : 'Currently on duty')
-                  : (isNe ? 'ड्युटी सुरु गर्नुहोस्' : 'Go on duty')}
-              </Text>
-            </View>
-            <Switch
-              value={onDuty}
-              onValueChange={toggleResponderDuty}
-              trackColor={{ false: '#D0D0D0', true: colors.safeGreen }}
-              thumbColor={onDuty ? '#FFFFFF' : '#FFFFFF'}
-              ios_backgroundColor="#D0D0D0"
-            />
-          </View>
+        {/* Community counter */}
+        {trainedCount != null && trainedCount > 0 && (
+          <Text style={styles.communityText}>
+            {isNe
+              ? `काठमाडौंमा ${trainedCount} जना प्रशिक्षित सहयोगीहरू दर्ता भएका छन्`
+              : `${trainedCount} trained helpers registered in Kathmandu`}
+          </Text>
         )}
 
-        {/* Utility row */}
-        <View style={styles.utilRow}>
-          {UTILITIES.map((u) => (
-            <TouchableOpacity
-              key={u.route}
-              style={styles.utilBtn}
-              onPress={() => navigate(u.route)}
-              activeOpacity={0.75}
-            >
-              <View style={styles.utilIconWrap}>
-                <Text style={styles.utilIcon}>{u.icon}</Text>
-              </View>
-              <Text style={styles.utilLabel} numberOfLines={2}>
-                {isNe ? u.labelNe : u.labelEn}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <View style={styles.divider} />
 
+        {/* Emergency Contacts card */}
+        <TouchableOpacity
+          style={styles.contactsCard}
+          onPress={() => navigate('EmergencyContacts')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.contactsHeader}>
+            <View>
+              <Text style={styles.contactsTitle}>
+                {isNe ? 'आपतकालीन सम्पर्क' : 'Emergency Contacts'}
+              </Text>
+              <Text style={styles.contactsSubtitle}>
+                {isNe ? 'तपाईंको भरोसाका मान्छेहरू' : 'Your trusted people'}
+              </Text>
+            </View>
+            <Text style={styles.contactsChevron}>›</Text>
+          </View>
+
+          {contacts.length === 0 ? (
+            <View style={styles.contactsEmpty}>
+              <View style={styles.addContactBtn}>
+                <Text style={styles.addContactBtnText}>
+                  + {isNe ? 'सम्पर्क थप्नुहोस्' : 'Add contacts'}
+                </Text>
+              </View>
+              <Text style={styles.contactsHint}>
+                {isNe ? 'आपतकालमा स्वतः सूचित गरिन्छ' : 'Notified automatically in emergencies'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.contactAvatarRow}>
+              {contacts.map((c, i) => (
+                <View key={`${c.phone}-${i}`} style={styles.contactAvatarWrap}>
+                  <View style={styles.contactAvatar}>
+                    <Text style={styles.contactAvatarText}>{initials(c.name)}</Text>
+                  </View>
+                  <Text style={styles.contactAvatarName} numberOfLines={1}>{c.name.split(' ')[0]}</Text>
+                </View>
+              ))}
+              {contacts.length < 3 && (
+                <View style={styles.contactAvatarWrap}>
+                  <View style={[styles.contactAvatar, styles.contactAvatarAdd]}>
+                    <Text style={styles.contactAvatarAddText}>+</Text>
+                  </View>
+                  <Text style={styles.contactAvatarName}>
+                    {isNe ? 'थप' : 'Add'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </TouchableOpacity>
       </ScrollView>
 
-      {/* ── Fixed bottom quick-dial bar ── */}
+      {/* Fixed bottom quick-dial bar */}
       <SafeAreaView edges={['bottom']} style={styles.quickDialWrap}>
         <View style={styles.quickDialBar}>
           {QUICK_DIAL.map((d) => (
@@ -277,7 +285,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         </View>
       </SafeAreaView>
 
-      {/* ── Shake countdown overlay ── */}
+      {/* Shake countdown overlay */}
       {shakeCountdown !== null && (
         <View style={styles.shakeOverlay}>
           <Text style={styles.shakeCount}>{shakeCountdown}</Text>
@@ -301,7 +309,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#121212' },
 
-  // ── Header ──
   headerWrap: { backgroundColor: '#1A1A1A' },
   header: {
     flexDirection: 'row',
@@ -317,22 +324,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   appSub: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 1 },
-  onDutyStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.safeGreen,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    gap: 8,
-  },
-  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFFFFF' },
-  onDutyText: { fontSize: 13, color: '#FFFFFF', fontWeight: '700', letterSpacing: 0.3 },
 
-  // ── Scroll body ──
   scroll: { flex: 1, backgroundColor: colors.background },
   scrollContent: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl },
 
-  // ── Primary health button ──
+  // Primary health button
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -370,7 +366,7 @@ const styles = StyleSheet.create({
   },
   chevronText: { color: '#FFFFFF', fontSize: 22, fontWeight: '700', lineHeight: 26 },
 
-  // ── Police + Fire row ──
+  // Police + Fire row
   row: { flexDirection: 'row', gap: spacing.sm },
   rowBtn: {
     flex: 1,
@@ -399,7 +395,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
 
-  // ── Blood donor button ──
+  // Blood donor button
   bloodBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -415,61 +411,67 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
 
+  // Community counter
+  communityText: {
+    fontSize: 12,
+    color: colors.lightText,
+    textAlign: 'center',
+    paddingVertical: spacing.xs,
+  },
+
   divider: { height: 1, backgroundColor: '#E8E8E8', marginVertical: spacing.xs },
 
-  // ── Responder duty card ──
-  dutyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Emergency Contacts card
+  contactsCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     borderWidth: 1.5,
     borderColor: '#E0E0E0',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
-  dutyCardActive: {
-    borderColor: colors.safeGreen,
-    backgroundColor: '#F1FBF4',
-  },
-  dutyInfo: { flex: 1 },
-  dutyTitle: { fontSize: fontSizes.md, fontWeight: '700', color: colors.darkText },
-  dutyTitleActive: { color: colors.safeGreen },
-  dutyStatus: { fontSize: fontSizes.sm, color: colors.lightText, marginTop: 2 },
-
-  // ── Utility row ──
-  utilRow: { flexDirection: 'row', gap: spacing.sm },
-  utilBtn: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
+  contactsHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minHeight: H_UTILITY,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#EBEBEB',
-    gap: 4,
+    justifyContent: 'space-between',
   },
-  utilIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  contactsTitle: { fontSize: fontSizes.md, fontWeight: '800', color: colors.darkText },
+  contactsSubtitle: { fontSize: 12, color: colors.lightText, marginTop: 1 },
+  contactsChevron: { fontSize: 24, color: colors.lightText, fontWeight: '700' },
+  contactsEmpty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xs },
+  addContactBtn: {
     backgroundColor: '#F5F5F5',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
+    borderRadius: borderRadius.full,
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+  },
+  addContactBtnText: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.lightText },
+  contactsHint: { fontSize: 11, color: colors.lightText },
+
+  contactAvatarRow: { flexDirection: 'row', gap: spacing.md },
+  contactAvatarWrap: { alignItems: 'center', gap: 4 },
+  contactAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.emergencyRed,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
   },
-  utilIcon: { fontSize: 20 },
-  utilLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.darkText,
-    textAlign: 'center',
-    lineHeight: 14,
+  contactAvatarText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  contactAvatarName: { fontSize: 11, color: colors.darkText, fontWeight: '600' },
+  contactAvatarAdd: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#D0D0D0',
+    borderStyle: 'dashed',
   },
+  contactAvatarAddText: { fontSize: 20, color: '#D0D0D0', fontWeight: '700' },
 
-  // ── Quick-dial bottom bar ──
+  // Quick-dial bottom bar
   quickDialWrap: { backgroundColor: '#1A1A1A' },
   quickDialBar: {
     flexDirection: 'row',
@@ -495,7 +497,7 @@ const styles = StyleSheet.create({
   },
   quickDialLabel: { fontSize: 10, color: 'rgba(255,255,255,0.55)', fontWeight: '500' },
 
-  // ── Shake overlay ──
+  // Shake overlay
   shakeOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(21,101,192,0.97)',

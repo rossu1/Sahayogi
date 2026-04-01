@@ -18,6 +18,7 @@ import FirstAidGuideScreen from '../screens/FirstAidGuideScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ResponderAlertScreen from '../screens/ResponderAlertScreen';
 import BloodDonorScreen from '../screens/BloodDonorScreen';
+import EmergencyContactsScreen from '../screens/EmergencyContactsScreen';
 import { colors } from '../constants/theme';
 
 const Stack = createStackNavigator();
@@ -129,6 +130,7 @@ export default function AppNavigator() {
             <Stack.Screen name="PoliceAlert" component={PoliceAlertScreen} />
             <Stack.Screen name="Hospitals" component={HospitalsScreen} />
             <Stack.Screen name="BloodDonor" component={BloodDonorScreen} />
+            <Stack.Screen name="EmergencyContacts" component={EmergencyContactsScreen} />
             <Stack.Screen name="HospitalDetail">
               {(props) => <HospitalDetailScreen {...(props as any)} />}
             </Stack.Screen>
