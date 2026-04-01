@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   Switch,
-  FlatList,
   ActivityIndicator,
   Linking,
   Alert,
@@ -18,166 +17,22 @@ import { useLocation } from '../hooks/useLocation';
 import { supabase } from '../lib/supabase';
 import { haversineDistance, formatDistance } from '../lib/geo';
 import { colors, fontSizes, spacing, borderRadius, minTouchTarget } from '../constants/theme';
+import { BloodType, BloodDonor } from '../types';
 
-type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+type DonorWithDistance = BloodDonor & { distance: number };
 
 const BLOOD_TYPES: BloodType[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const BLOOD_RED = '#C62828';
-const SEARCH_RADIUS_M = 10000; // 10 km
-const DONOR_COOLDOWN_DAYS = 90;
+const SEARCH_RADIUS_M = 10000;
 
-interface Donor {
-  id: string;
-  full_name: string;
-  blood_type: BloodType;
-  lat: number;
-  lng: number;
-  is_available: boolean;
-  phone: string;
-  last_donated_at: string | null;
-  distance?: number;
-}
-
-interface Props {
-  navigation: any;
-}
-
-export default function BloodDonorScreen({ navigation }: Props) {
-  const { user } = useAuth();
-  const { language, t } = useLanguage();
-  const { location, error: locError } = useLocation();
-
-  const [activeTab, setActiveTab] = useState<'find' | 'register'>('find');
-
-  // Find tab state
-  const [selectedType, setSelectedType] = useState<BloodType | null>(null);
-  const [donors, setDonors] = useState<Donor[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searched, setSearched] = useState(false);
-
-  // Register tab state
-  const [regName, setRegName] = useState(user?.full_name ?? '');
-  const [regPhone, setRegPhone] = useState(user?.phone ?? '');
-  const [regBloodType, setRegBloodType] = useState<BloodType | null>(null);
-  const [regAvailable, setRegAvailable] = useState(true);
-  const [registering, setRegistering] = useState(false);
-  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
-  const [existingDonorId, setExistingDonorId] = useState<string | null>(null);
-
-  const isNe = language === 'ne';
-
-  // Check if user is already registered on tab switch
-  const checkExistingRegistration = useCallback(async () => {
-    if (!user?.id || user.id === 'guest') return;
-    const { data } = await supabase
-      .from('blood_donors')
-      .select('id, blood_type, is_available')
-      .eq('user_id', user.id)
-      .single();
-    if (data) {
-      setAlreadyRegistered(true);
-      setExistingDonorId(data.id);
-      setRegBloodType(data.blood_type as BloodType);
-      setRegAvailable(data.is_available);
-    }
-  }, [user?.id]);
-
-  const searchDonors = async () => {
-    if (!selectedType) return;
-    if (!location) {
-      Alert.alert(
-        isNe ? 'स्थान आवश्यक' : 'Location required',
-        isNe ? 'दाता खोज्न GPS सक्षम गर्नुहोस्' : 'Please enable GPS to find nearby donors'
-      );
-      return;
-    }
-    setSearching(true);
-    setSearched(false);
-
-    const { data, error } = await supabase
-      .from('blood_donors')
-      .select('id, full_name, blood_type, lat, lng, is_available, phone, last_donated_at')
-      .eq('blood_type', selectedType)
-      .eq('is_available', true);
-
-    if (error) {
-      Alert.alert(isNe ? 'त्रुटि' : 'Error', error.message);
-      setSearching(false);
-      return;
-    }
-
-    const nearby = (data ?? [])
-      .map((d: Donor) => ({
-        ...d,
-        distance: haversineDistance(location.lat, location.lng, d.lat, d.lng),
-      }))
-      .filter((d) => d.distance! <= SEARCH_RADIUS_M)
-      .sort((a, b) => a.distance! - b.distance!);
-
-    setDonors(nearby);
-    setSearched(true);
-    setSearching(false);
-  };
-
-  const registerDonor = async () => {
-    if (!regBloodType) {
-      Alert.alert('', isNe ? 'रगत समूह छान्नुहोस्' : 'Please select a blood type');
-      return;
-    }
-    if (!regName.trim() || !regPhone.trim()) {
-      Alert.alert('', isNe ? 'नाम र फोन नम्बर आवश्यक छ' : 'Name and phone are required');
-      return;
-    }
-    if (!location) {
-      Alert.alert(
-        isNe ? 'स्थान आवश्यक' : 'Location required',
-        isNe ? 'दर्ता गर्न GPS सक्षम गर्नुहोस्' : 'Please enable GPS to register'
-      );
-      return;
-    }
-    setRegistering(true);
-
-    const payload = {
-      user_id: user?.id !== 'guest' ? user?.id : null,
-      blood_type: regBloodType,
-      lat: location.lat,
-      lng: location.lng,
-      is_available: regAvailable,
-      phone: regPhone.trim(),
-      full_name: regName.trim(),
-    };
-
-    let error;
-    if (alreadyRegistered && existingDonorId) {
-      ({ error } = await supabase
-        .from('blood_donors')
-        .update({ is_available: regAvailable, lat: location.lat, lng: location.lng })
-        .eq('id', existingDonorId));
-    } else {
-      ({ error } = await supabase.from('blood_donors').insert(payload));
-    }
-
-    setRegistering(false);
-    if (error) {
-      Alert.alert(isNe ? 'त्रुटि' : 'Error', error.message);
-    } else {
-      setAlreadyRegistered(true);
-      Alert.alert(
-        isNe ? 'सफल!' : 'Success!',
-        alreadyRegistered
-          ? isNe ? 'तपाईंको जानकारी अपडेट गरियो' : 'Your information has been updated'
-          : isNe ? 'तपाईं रगत दाताको रूपमा दर्ता हुनुभयो' : 'You are now registered as a blood donor'
-      );
-    }
-  };
-
-  const BloodTypeGrid = ({
-    selected,
-    onSelect,
-  }: {
-    selected: BloodType | null;
-    onSelect: (t: BloodType) => void;
-  }) => (
+function BloodTypeGrid({
+  selected,
+  onSelect,
+}: {
+  selected: BloodType | null;
+  onSelect: (t: BloodType) => void;
+}) {
+  return (
     <View style={styles.bloodTypeGrid}>
       {BLOOD_TYPES.map((bt) => (
         <TouchableOpacity
@@ -192,82 +47,199 @@ export default function BloodDonorScreen({ navigation }: Props) {
       ))}
     </View>
   );
+}
+
+interface Props {
+  navigation: any;
+}
+
+export default function BloodDonorScreen({ navigation }: Props) {
+  const { user } = useAuth();
+  const { t } = useLanguage();
+  const { location, error: locError } = useLocation();
+
+  const [activeTab, setActiveTab] = useState<'find' | 'register'>('find');
+
+  // null = haven't searched yet; [] = searched, no results; [...] = results
+  const [donors, setDonors] = useState<DonorWithDistance[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [selectedType, setSelectedType] = useState<BloodType | null>(null);
+
+  const [regName, setRegName] = useState(user?.full_name ?? '');
+  const [regPhone, setRegPhone] = useState(user?.phone ?? '');
+  const [regBloodType, setRegBloodType] = useState<BloodType | null>(null);
+  const [regAvailable, setRegAvailable] = useState(true);
+  const [registering, setRegistering] = useState(false);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  const [existingDonorId, setExistingDonorId] = useState<string | null>(null);
+
+  const checkExistingRegistration = useCallback(async () => {
+    if (!user?.id || user.id === 'guest') return;
+    const { data, error } = await supabase
+      .from('blood_donors')
+      .select('id, blood_type, is_available')
+      .eq('user_id', user.id)
+      .single();
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = no rows found (expected); anything else is a real error
+      Alert.alert(t('common.error'), error.message);
+      return;
+    }
+    if (data) {
+      setAlreadyRegistered(true);
+      setExistingDonorId(data.id);
+      setRegBloodType(data.blood_type as BloodType);
+      setRegAvailable(data.is_available);
+    }
+  }, [user?.id, t]);
+
+  useEffect(() => {
+    if (activeTab === 'register') {
+      checkExistingRegistration();
+    }
+  }, [activeTab, checkExistingRegistration]);
+
+  const searchDonors = async () => {
+    if (!selectedType) return;
+    if (!location) {
+      Alert.alert(
+        t('common.error'),
+        t('fallback.locationError')
+      );
+      return;
+    }
+    setSearching(true);
+
+    const { data, error } = await supabase
+      .from('blood_donors')
+      .select('id, user_id, full_name, blood_type, lat, lng, is_available, phone, last_donated_at, created_at')
+      .eq('blood_type', selectedType)
+      .eq('is_available', true);
+
+    if (error) {
+      Alert.alert(t('common.error'), error.message);
+      setSearching(false);
+      return;
+    }
+
+    const nearby = (data as BloodDonor[])
+      .map((d) => ({
+        ...d,
+        distance: haversineDistance(location.lat, location.lng, d.lat, d.lng),
+      }))
+      .filter((d) => d.distance <= SEARCH_RADIUS_M)
+      .sort((a, b) => a.distance - b.distance);
+
+    setDonors(nearby);
+    setSearching(false);
+  };
+
+  const registerDonor = async () => {
+    if (!regBloodType) {
+      Alert.alert('', t('common.error'));
+      return;
+    }
+    if (!regName.trim() || !regPhone.trim()) {
+      Alert.alert('', t('common.error'));
+      return;
+    }
+    if (!location) {
+      Alert.alert(t('common.error'), t('fallback.locationError'));
+      return;
+    }
+    setRegistering(true);
+
+    let error;
+    if (alreadyRegistered && existingDonorId) {
+      ({ error } = await supabase
+        .from('blood_donors')
+        .update({ is_available: regAvailable, lat: location.lat, lng: location.lng })
+        .eq('id', existingDonorId));
+    } else {
+      ({ error } = await supabase.from('blood_donors').insert({
+        user_id: user?.id !== 'guest' ? user?.id : null,
+        blood_type: regBloodType,
+        lat: location.lat,
+        lng: location.lng,
+        is_available: regAvailable,
+        phone: regPhone.trim(),
+        full_name: regName.trim(),
+      }));
+    }
+
+    setRegistering(false);
+    if (error) {
+      Alert.alert(t('common.error'), error.message);
+    } else {
+      setAlreadyRegistered(true);
+      Alert.alert(t('common.done'), alreadyRegistered ? t('common.save') : t('bloodDonor.registerAsDonor'));
+    }
+  };
+
+  const hasSearched = donors !== null;
+  const noResults = hasSearched && donors!.length === 0;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitle}>🩸 {isNe ? t('bloodDonor.title') : t('bloodDonor.titleEn')}</Text>
-        </View>
+        <Text style={styles.headerTitle}>🩸 {t('bloodDonor.title')}</Text>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'find' && styles.tabActive]}
           onPress={() => setActiveTab('find')}
         >
           <Text style={[styles.tabText, activeTab === 'find' && styles.tabTextActive]}>
-            {isNe ? t('bloodDonor.findDonor') : t('bloodDonor.findDonorEn')}
+            {t('bloodDonor.findDonor')}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'register' && styles.tabActive]}
-          onPress={() => { setActiveTab('register'); checkExistingRegistration(); }}
+          onPress={() => setActiveTab('register')}
         >
           <Text style={[styles.tabText, activeTab === 'register' && styles.tabTextActive]}>
-            {isNe ? t('bloodDonor.becomeDonor') : t('bloodDonor.becomeDonorEn')}
+            {t('bloodDonor.becomeDonor')}
           </Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
 
-        {/* ── FIND TAB ── */}
         {activeTab === 'find' && (
           <View>
             {locError && (
               <View style={styles.locWarning}>
                 <Text style={styles.locWarningText}>
-                  ⚠️ {isNe ? 'GPS उपलब्ध छैन — स्थान सेटिङ जाँच गर्नुहोस्' : 'GPS unavailable — check location settings'}
+                  ⚠️ {t('fallback.locationError')}
                 </Text>
               </View>
             )}
 
-            <Text style={styles.sectionLabel}>
-              {isNe ? t('bloodDonor.bloodTypeNeeded') : t('bloodDonor.bloodTypeNeededEn')}
-            </Text>
+            <Text style={styles.sectionLabel}>{t('bloodDonor.bloodTypeNeeded')}</Text>
             <BloodTypeGrid selected={selectedType} onSelect={setSelectedType} />
 
             <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: BLOOD_RED }, (!selectedType || searching) && styles.disabledBtn]}
+              style={[styles.primaryBtn, (!selectedType || searching) && styles.disabledBtn]}
               onPress={searchDonors}
               disabled={!selectedType || searching}
             >
               {searching ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryBtnText}>
-                  {isNe ? t('bloodDonor.searchDonors') : t('bloodDonor.searchDonorsEn')}
-                </Text>
+                <Text style={styles.primaryBtnText}>{t('bloodDonor.searchDonors')}</Text>
               )}
             </TouchableOpacity>
 
-            {/* Results */}
-            {searched && donors.length === 0 && (
+            {noResults && (
               <View style={styles.noDonorsCard}>
-                <Text style={styles.noDonorsText}>
-                  {isNe ? t('bloodDonor.noDonorsFound') : t('bloodDonor.noDonorsFoundEn')}
-                </Text>
-                <Text style={styles.redCrossLabel}>
-                  {isNe ? t('bloodDonor.redCrossContact') : t('bloodDonor.redCrossContactEn')}
-                </Text>
+                <Text style={styles.noDonorsText}>{t('bloodDonor.noDonorsFound')}</Text>
+                <Text style={styles.redCrossLabel}>{t('bloodDonor.redCrossContact')}</Text>
                 <TouchableOpacity
-                  style={[styles.callBtn, { backgroundColor: BLOOD_RED }]}
+                  style={styles.callBtn}
                   onPress={() => Linking.openURL('tel:014228094')}
                 >
                   <Text style={styles.callBtnText}>📞 01-4228094</Text>
@@ -275,68 +247,51 @@ export default function BloodDonorScreen({ navigation }: Props) {
               </View>
             )}
 
-            {donors.map((donor) => (
+            {donors?.map((donor) => (
               <View key={donor.id} style={styles.donorCard}>
                 <View style={styles.donorInfo}>
                   <View style={styles.donorRow}>
-                    <View style={[styles.bloodBadge, { backgroundColor: BLOOD_RED }]}>
+                    <View style={styles.bloodBadge}>
                       <Text style={styles.bloodBadgeText}>{donor.blood_type}</Text>
                     </View>
-                    <Text style={styles.donorName}>
-                      {donor.full_name.split(' ')[0]}
-                    </Text>
+                    <Text style={styles.donorName}>{donor.full_name.split(' ')[0]}</Text>
                     <View style={[styles.availBadge, { backgroundColor: donor.is_available ? colors.safeGreen : '#9E9E9E' }]}>
                       <Text style={styles.availText}>
-                        {donor.is_available
-                          ? (isNe ? t('bloodDonor.available') : t('bloodDonor.availableEn'))
-                          : (isNe ? t('bloodDonor.unavailable') : t('bloodDonor.unavailableEn'))}
+                        {donor.is_available ? t('bloodDonor.available') : t('bloodDonor.unavailable')}
                       </Text>
                     </View>
                   </View>
-                  {donor.distance !== undefined && (
-                    <Text style={styles.distanceText}>
-                      📍 {formatDistance(donor.distance)}
-                    </Text>
-                  )}
+                  <Text style={styles.distanceText}>📍 {formatDistance(donor.distance)}</Text>
                 </View>
                 <TouchableOpacity
-                  style={[styles.callBtn, { backgroundColor: BLOOD_RED }]}
+                  style={styles.callBtn}
                   onPress={() => Linking.openURL(`tel:${donor.phone}`)}
                 >
-                  <Text style={styles.callBtnText}>
-                    📞 {isNe ? t('bloodDonor.callDonor') : t('bloodDonor.callDonorEn')}
-                  </Text>
+                  <Text style={styles.callBtnText}>📞 {t('bloodDonor.callDonor')}</Text>
                 </TouchableOpacity>
               </View>
             ))}
           </View>
         )}
 
-        {/* ── REGISTER TAB ── */}
         {activeTab === 'register' && (
           <View>
             {alreadyRegistered && (
               <View style={styles.registeredBanner}>
-                <Text style={styles.registeredText}>
-                  ✅ {isNe ? 'तपाईं पहिले नै दर्ता हुनुभएको छ' : 'You are already registered'}
-                </Text>
+                <Text style={styles.registeredText}>✅ {t('bloodDonor.registerAsDonor')}</Text>
               </View>
             )}
 
-            <Text style={styles.fieldLabel}>
-              {isNe ? 'पूरा नाम' : 'Full name'}
-            </Text>
+            <Text style={styles.fieldLabel}>{t('onboarding.fullName')}</Text>
             <TextInput
               style={styles.input}
               value={regName}
               onChangeText={setRegName}
-              placeholder={isNe ? 'तपाईंको नाम' : 'Your name'}
+              placeholder={t('onboarding.namePlaceholder')}
               editable={!alreadyRegistered}
             />
 
-            <Text style={styles.fieldLabel}>
-              {isNe ? 'फोन नम्बर' : 'Phone number'}
-            </Text>
+            <Text style={styles.fieldLabel}>{t('settings.phoneNumber')}</Text>
             <TextInput
               style={styles.input}
               value={regPhone}
@@ -346,19 +301,12 @@ export default function BloodDonorScreen({ navigation }: Props) {
               editable={!alreadyRegistered}
             />
 
-            <Text style={styles.fieldLabel}>
-              {isNe ? 'रगत समूह' : 'Blood type'}
-            </Text>
+            <Text style={styles.fieldLabel}>{t('settings.qualification')}</Text>
             <BloodTypeGrid selected={regBloodType} onSelect={setRegBloodType} />
 
             <View style={styles.availableRow}>
               <View style={styles.availableInfo}>
-                <Text style={styles.availableLabel}>
-                  {isNe ? t('bloodDonor.iAmAvailable') : t('bloodDonor.iAmAvailableEn')}
-                </Text>
-                <Text style={styles.availableHint}>
-                  {isNe ? 'अहिले रगत दिन तयार छु' : 'I am ready to donate now'}
-                </Text>
+                <Text style={styles.availableLabel}>{t('bloodDonor.iAmAvailable')}</Text>
               </View>
               <Switch
                 value={regAvailable}
@@ -369,7 +317,7 @@ export default function BloodDonorScreen({ navigation }: Props) {
             </View>
 
             <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: BLOOD_RED }, registering && styles.disabledBtn]}
+              style={[styles.primaryBtn, registering && styles.disabledBtn]}
               onPress={registerDonor}
               disabled={registering}
             >
@@ -377,18 +325,15 @@ export default function BloodDonorScreen({ navigation }: Props) {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.primaryBtnText}>
-                  {alreadyRegistered
-                    ? (isNe ? 'अपडेट गर्नुहोस्' : 'Update Registration')
-                    : (isNe ? t('bloodDonor.registerAsDonor') : t('bloodDonor.registerAsDonorEn'))}
+                  {alreadyRegistered ? t('common.save') : t('bloodDonor.registerAsDonor')}
                 </Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.disclaimer}>
               <Text style={styles.disclaimerText}>
-                {isNe
-                  ? '• ९० दिनभित्र रगत दिएकाले अनुपलब्ध देखिनेछन्\n• तपाईंको फोन नम्बर सूचीमा देखिँदैन'
-                  : '• Donors within 90 days of last donation will appear unavailable\n• Your phone number is never shown in the list'}
+                {t('bloodDonor.lastDonated')}: 90 {t('common.optional')}{'\n'}
+                • {t('fallback.callDirectly')}
               </Text>
             </View>
           </View>
@@ -403,7 +348,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#C62828',
+    backgroundColor: BLOOD_RED,
     paddingTop: 48,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.md,
@@ -425,9 +370,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
-  tabActive: { borderBottomColor: '#C62828' },
+  tabActive: { borderBottomColor: BLOOD_RED },
   tabText: { fontSize: fontSizes.sm, fontWeight: '600', color: colors.lightText },
-  tabTextActive: { color: '#C62828' },
+  tabTextActive: { color: BLOOD_RED },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
   locWarning: {
     backgroundColor: '#FFF3CD',
@@ -458,17 +403,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bloodTypeBtnSelected: { borderColor: '#C62828', backgroundColor: '#FFF0F0' },
+  bloodTypeBtnSelected: { borderColor: BLOOD_RED, backgroundColor: '#FFF0F0' },
   bloodTypeBtnText: { fontSize: fontSizes.lg, fontWeight: '800', color: colors.lightText },
-  bloodTypeBtnTextSelected: { color: '#C62828' },
+  bloodTypeBtnTextSelected: { color: BLOOD_RED },
   primaryBtn: {
+    backgroundColor: BLOOD_RED,
     borderRadius: borderRadius.md,
     paddingVertical: 16,
     alignItems: 'center',
     minHeight: minTouchTarget,
     justifyContent: 'center',
     marginBottom: spacing.md,
-    shadowColor: '#C62828',
+    shadowColor: BLOOD_RED,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -504,20 +450,18 @@ const styles = StyleSheet.create({
   donorInfo: { flex: 1 },
   donorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap', marginBottom: 4 },
   bloodBadge: {
+    backgroundColor: BLOOD_RED,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: borderRadius.full,
   },
   bloodBadgeText: { color: colors.white, fontSize: fontSizes.sm, fontWeight: '800' },
   donorName: { fontSize: fontSizes.md, fontWeight: '700', color: colors.darkText },
-  availBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: borderRadius.full,
-  },
+  availBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: borderRadius.full },
   availText: { color: colors.white, fontSize: fontSizes.xs, fontWeight: '600' },
   distanceText: { fontSize: fontSizes.sm, color: colors.lightText },
   callBtn: {
+    backgroundColor: BLOOD_RED,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: borderRadius.sm,
@@ -563,7 +507,6 @@ const styles = StyleSheet.create({
   },
   availableInfo: { flex: 1, marginRight: spacing.sm },
   availableLabel: { fontSize: fontSizes.md, fontWeight: '700', color: colors.darkText },
-  availableHint: { fontSize: fontSizes.xs, color: colors.lightText, marginTop: 2 },
   disclaimer: {
     backgroundColor: '#F5F5F5',
     borderRadius: borderRadius.sm,
