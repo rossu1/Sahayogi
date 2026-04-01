@@ -77,7 +77,7 @@ const QUICK_DIAL = [
 ];
 
 const UTILITIES = [
-  { icon: '🏥', labelNe: 'अस्पताल', labelEn: 'Hospitals', route: 'Hospitals' },
+  { icon: '🏥', labelNe: 'नजिकको अस्पताल', labelEn: 'Nearby Hospitals', route: 'Hospitals' },
   { icon: '🩺', labelNe: 'प्राथमिक उपचार', labelEn: 'First Aid', route: 'FirstAid' },
   { icon: '⚙️', labelNe: 'सेटिङ', labelEn: 'Settings', route: 'Settings' },
 ];

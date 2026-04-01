@@ -19,4 +19,7 @@ export const TABLES = {
   INCIDENTS: 'incidents',
   RESPONSES: 'responses',
   POLICE_ALERTS: 'police_alerts',
+  HOSPITAL_FINDER: 'hospital_finder',
+  HOSPITAL_PRICES: 'hospital_prices',
+  HOSPITAL_REVIEWS: 'hospital_reviews',
 } as const;

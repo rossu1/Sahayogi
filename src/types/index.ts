@@ -102,6 +102,52 @@ export interface Hospital {
   address_ne: string;
 }
 
+export type HospitalType = 'government' | 'private' | 'ngo';
+
+export interface HospitalRecord {
+  id: string;
+  name_en: string;
+  name_ne: string;
+  phone: string;
+  emergency_phone: string | null;
+  hospital_type: HospitalType;
+  specialities: string[];
+  lat: number;
+  lng: number;
+  address_en: string;
+  address_ne: string;
+  opd_hours_en: string;
+  opd_hours_ne: string;
+  is_24hr_emergency: boolean;
+  consultation_fee_min: number | null;
+  consultation_fee_max: number | null;
+  rating: number;
+  review_count: number;
+  created_at: string;
+}
+
+export interface HospitalPrice {
+  id: string;
+  hospital_id: string;
+  service_en: string;
+  service_ne: string;
+  price_min: number;
+  price_max: number;
+  reported_by: string | null;
+  verified: boolean;
+  created_at: string;
+}
+
+export interface HospitalReview {
+  id: string;
+  hospital_id: string;
+  reviewer_id: string | null;
+  rating: number;
+  comment_en: string;
+  comment_ne: string;
+  created_at: string;
+}
+
 export interface WebhookPayload {
   type: 'police_alert' | 'health_emergency' | 'fire';
   situation: string;
