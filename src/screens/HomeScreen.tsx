@@ -115,6 +115,14 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             style={styles.halfWidth}
           />
         </View>
+
+        <EmergencyButton
+          label={`🩸 ${language === 'ne' ? 'रगत दाता' : 'Blood Donor'}`}
+          color="#C62828"
+          onPress={() => navigation.navigate('BloodDonor')}
+          size="medium"
+          style={styles.fullWidth}
+        />
       </View>
 
       {/* Responder toggle */}

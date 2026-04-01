@@ -74,6 +74,21 @@ export interface PoliceAlert {
   ended_at: string | null;
 }
 
+export type BloodType = 'A+' | 'A-' | 'B+' | 'B-' | 'AB+' | 'AB-' | 'O+' | 'O-';
+
+export interface BloodDonor {
+  id: string;
+  user_id: string | null;
+  blood_type: BloodType;
+  lat: number;
+  lng: number;
+  is_available: boolean;
+  last_donated_at: string | null;
+  phone: string;
+  full_name: string;
+  created_at: string;
+}
+
 export interface Hospital {
   id: string;
   name_en: string;

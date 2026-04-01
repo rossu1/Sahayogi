@@ -202,6 +202,36 @@ export const en = {
     optional: 'optional',
   },
 
+  // Blood Donor
+  bloodDonor: {
+    title: 'Blood Donor',
+    titleEn: 'Blood Donor',
+    findDonor: 'Find Donor',
+    findDonorEn: 'Find Donor',
+    becomeDonor: 'Become a Donor',
+    becomeDonorEn: 'Become a Donor',
+    bloodTypeNeeded: 'Which blood type is needed?',
+    bloodTypeNeededEn: 'Which blood type is needed?',
+    searchDonors: 'Search',
+    searchDonorsEn: 'Search',
+    callDonor: 'Call',
+    callDonorEn: 'Call',
+    available: 'Available',
+    availableEn: 'Available',
+    unavailable: 'Unavailable',
+    unavailableEn: 'Unavailable',
+    registerAsDonor: 'Register as Donor',
+    registerAsDonorEn: 'Register as Donor',
+    lastDonated: 'Last donated',
+    lastDonatedEn: 'Last donated',
+    iAmAvailable: 'I am available now',
+    iAmAvailableEn: 'I am available now',
+    noDonorsFound: 'No donors found nearby',
+    noDonorsFoundEn: 'No donors found nearby',
+    redCrossContact: 'Nepal Red Cross: 01-4228094',
+    redCrossContactEn: 'Nepal Red Cross: 01-4228094',
+  },
+
   // Errors / Fallback
   fallback: {
     supabaseError: 'Could not connect to server',

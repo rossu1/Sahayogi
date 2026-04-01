@@ -202,6 +202,36 @@ export const ne = {
     optional: 'ऐच्छिक',
   },
 
+  // Blood Donor
+  bloodDonor: {
+    title: 'रगत दाता',
+    titleEn: 'रगत दाता',
+    findDonor: 'दाता खोज्नुहोस्',
+    findDonorEn: 'दाता खोज्नुहोस्',
+    becomeDonor: 'दाता बन्नुहोस्',
+    becomeDonorEn: 'दाता बन्नुहोस्',
+    bloodTypeNeeded: 'कुन रगत समूह चाहिन्छ?',
+    bloodTypeNeededEn: 'कुन रगत समूह चाहिन्छ?',
+    searchDonors: 'खोज्नुहोस्',
+    searchDonorsEn: 'खोज्नुहोस्',
+    callDonor: 'फोन गर्नुहोस्',
+    callDonorEn: 'फोन गर्नुहोस्',
+    available: 'उपलब्ध',
+    availableEn: 'उपलब्ध',
+    unavailable: 'अनुपलब्ध',
+    unavailableEn: 'अनुपलब्ध',
+    registerAsDonor: 'दर्ता गर्नुहोस्',
+    registerAsDonorEn: 'दर्ता गर्नुहोस्',
+    lastDonated: 'पछिल्लो पटक रगत दिएको',
+    lastDonatedEn: 'पछिल्लो पटक रगत दिएको',
+    iAmAvailable: 'म अहिले उपलब्ध छु',
+    iAmAvailableEn: 'म अहिले उपलब्ध छु',
+    noDonorsFound: 'नजिकैमा दाता भेटिएन',
+    noDonorsFoundEn: 'नजिकैमा दाता भेटिएन',
+    redCrossContact: 'नेपाल रेड क्रस: ०१-४२२८०९४',
+    redCrossContactEn: 'नेपाल रेड क्रस: ०१-४२२८०९४',
+  },
+
   // Errors / Fallback
   fallback: {
     supabaseError: 'सर्भरमा जडान हुन सकेन',
