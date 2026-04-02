@@ -1,18 +1,33 @@
 export const colors = {
-  emergencyRed: '#D32F2F',
-  policeBlue: '#1565C0',
-  safeGreen: '#2E7D32',
-  fireOrange: '#E65100',
-  background: '#FAFAFA',
-  darkText: '#1A1A1A',
-  lightText: '#757575',
+  // Dark emergency palette
+  bgPrimary: '#0A0A0F',
+  bgSurface: '#111118',
+  bgElevated: '#1a1a24',
+  borderSubtle: '#1e1e2a',
+  borderMedium: '#333340',
+
+  emergencyRed: '#DC2626',
+  policeBlue: '#3B82F6',
+  safeGreen: '#16A34A',
+  fireOrange: '#F97316',
+  bloodRed: '#BE123C',
+
+  textPrimary: '#FFFFFF',
+  textSecondary: '#888888',
+  textMuted: '#555555',
+  textDim: '#444444',
+
+  // Legacy compat (used by other screens)
+  background: '#0A0A0F',
+  darkText: '#FFFFFF',
+  lightText: '#888888',
   white: '#FFFFFF',
-  border: '#E0E0E0',
-  surface: '#FFFFFF',
-  overlay: 'rgba(0,0,0,0.5)',
-  doctorBadge: '#D32F2F',
-  medStudentBadge: '#E65100',
-  firstAidBadge: '#1565C0',
+  border: '#1e1e2a',
+  surface: '#111118',
+  overlay: 'rgba(0,0,0,0.7)',
+  doctorBadge: '#DC2626',
+  medStudentBadge: '#F97316',
+  firstAidBadge: '#3B82F6',
 };
 
 export const spacing = {
@@ -31,7 +46,7 @@ export const fontSizes = {
   lg: 20,
   xl: 24,
   xxl: 32,
-  hero: 40,
+  hero: 48,
 };
 
 export const minTouchTarget = 64;

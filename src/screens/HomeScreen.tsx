@@ -13,63 +13,61 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../hooks/useLanguage';
 import { useShakeDetect } from '../hooks/useShakeDetect';
 import { supabase, TABLES } from '../lib/supabase';
-import { LanguageToggle } from '../components/LanguageToggle';
 import { EmergencyContact } from '../types';
 import { colors, fontSizes, spacing, borderRadius } from '../constants/theme';
 
-const H_PRIMARY = 112;
-const H_SECONDARY = 80;
-const H_UTILITY = 64;
-
 interface HomeScreenProps { navigation: any; }
 
-interface EmergencyAction {
+// ── Emergency action data ─────────────────────────────────────────────────────
+interface ActionCard {
   labelNe: string;
   labelEn: string;
-  color: string;
+  accentColor: string;
+  icon: string;
   route: string;
   routeParams?: object;
-  icon: string;
 }
 
-const PRIMARY_ACTION: EmergencyAction = {
-  labelNe: 'स्वास्थ्य आपतकाल',
-  labelEn: 'Health Emergency',
-  color: colors.emergencyRed,
-  route: 'HealthEmergency',
-  icon: '🚨',
-};
-
-const ROW_ACTIONS: EmergencyAction[] = [
+const MAIN_ACTIONS: ActionCard[] = [
+  {
+    labelNe: 'स्वास्थ्य आपतकाल',
+    labelEn: 'Health Emergency',
+    accentColor: colors.emergencyRed,
+    icon: '♥',
+    route: 'HealthEmergency',
+  },
   {
     labelNe: 'प्रहरी सूचना',
     labelEn: 'Police Alert',
-    color: colors.policeBlue,
+    accentColor: colors.policeBlue,
+    icon: '⛨',
     route: 'PoliceAlert',
-    icon: '🚔',
   },
   {
     labelNe: 'आगो / अन्य',
     labelEn: 'Fire / Other',
-    color: colors.fireOrange,
+    accentColor: colors.fireOrange,
+    icon: '🔥',
     route: 'HealthEmergency',
     routeParams: { type: 'fire' },
-    icon: '🔥',
   },
 ];
 
-const BLOOD_ACTION: EmergencyAction = {
-  labelNe: 'रगत दाता',
-  labelEn: 'Blood Donor',
-  color: '#C62828',
-  route: 'BloodDonor',
-  icon: '🩸',
-};
-
-const QUICK_DIAL = [
-  { number: '102', labelNe: 'एम्बुलेन्स', labelEn: 'Ambulance', icon: '🚑', color: colors.emergencyRed },
-  { number: '100', labelNe: 'प्रहरी', labelEn: 'Police', icon: '🚔', color: colors.policeBlue },
-  { number: '101', labelNe: 'दमकल', labelEn: 'Fire', icon: '🚒', color: colors.fireOrange },
+const SECONDARY_ACTIONS: ActionCard[] = [
+  {
+    labelNe: 'रगत दाता',
+    labelEn: 'Blood Donor',
+    accentColor: colors.bloodRed,
+    icon: '💧',
+    route: 'BloodDonor',
+  },
+  {
+    labelNe: 'अस्पताल',
+    labelEn: 'Hospital',
+    accentColor: colors.safeGreen,
+    icon: '🏥',
+    route: 'HospitalFinder',
+  },
 ];
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
@@ -82,7 +80,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const isNe = language === 'ne';
   const contacts: EmergencyContact[] = (user?.emergency_contacts as EmergencyContact[]) ?? [];
 
-  // Fetch trained helper count
   useEffect(() => {
     (async () => {
       const { count, error } = await supabase
@@ -119,18 +116,62 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       : name.slice(0, 2).toUpperCase();
   };
 
+  // ── Render action card ──────────────────────────────────────────────────────
+  function renderCard(action: ActionCard, key: string) {
+    return (
+      <TouchableOpacity
+        key={key}
+        style={[styles.actionCard, { borderLeftColor: action.accentColor }]}
+        onPress={() => navigate(action.route, action.routeParams)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.cardIcon, { backgroundColor: `${action.accentColor}20` }]}>
+          <Text style={[styles.cardIconText, { color: action.accentColor }]}>
+            {action.icon}
+          </Text>
+        </View>
+        <View style={styles.cardLabels}>
+          <Text style={styles.cardTitle}>
+            {isNe ? action.labelNe : action.labelEn}
+          </Text>
+          <Text style={styles.cardSubtitle}>
+            {isNe ? action.labelEn : action.labelNe}
+          </Text>
+        </View>
+        <Text style={styles.cardChevron}>›</Text>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#1A1A1A" />
+      <StatusBar barStyle="light-content" backgroundColor={colors.bgPrimary} />
 
       {/* Header */}
       <SafeAreaView edges={['top']} style={styles.headerWrap}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.appName}>{isNe ? 'सहायोगी' : 'Sahayogi'}</Text>
-            <Text style={styles.appSub}>{isNe ? 'आपतकालीन प्रतिक्रिया' : 'Emergency Response'}</Text>
+          <Text style={styles.appName}>
+            {isNe ? 'सहायोगी' : 'Sahayogi'}
+          </Text>
+          {/* Language toggle pills */}
+          <View style={styles.langToggle}>
+            <TouchableOpacity
+              style={[styles.langBtn, language === 'ne' && styles.langBtnActive]}
+              onPress={() => setLanguage('ne')}
+            >
+              <Text style={[styles.langBtnText, language === 'ne' && styles.langBtnTextActive]}>
+                ने
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.langBtn, language === 'en' && styles.langBtnActive]}
+              onPress={() => setLanguage('en')}
+            >
+              <Text style={[styles.langBtnText, language === 'en' && styles.langBtnTextActive]}>
+                En
+              </Text>
+            </TouchableOpacity>
           </View>
-          <LanguageToggle language={language} onToggle={setLanguage} />
         </View>
       </SafeAreaView>
 
@@ -140,152 +181,101 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Primary: Health Emergency */}
-        <TouchableOpacity
-          style={[styles.primaryBtn, { backgroundColor: PRIMARY_ACTION.color }]}
-          onPress={() => navigate(PRIMARY_ACTION.route)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.btnIcon}>{PRIMARY_ACTION.icon}</Text>
-          <View style={styles.btnLabels}>
-            <Text style={styles.btnLabelPrimary}>
-              {isNe ? PRIMARY_ACTION.labelNe : PRIMARY_ACTION.labelEn}
-            </Text>
-            <Text style={styles.btnLabelSecondary}>
-              {isNe ? PRIMARY_ACTION.labelEn : PRIMARY_ACTION.labelNe}
-            </Text>
-          </View>
-          <View style={styles.chevron}>
-            <Text style={styles.chevronText}>›</Text>
-          </View>
-        </TouchableOpacity>
+        {/* Section title */}
+        <Text style={styles.sectionTitle}>
+          {isNe ? 'के भयो?' : 'What happened?'}
+        </Text>
 
-        {/* Police + Fire row */}
-        <View style={styles.row}>
-          {ROW_ACTIONS.map((action) => (
+        {/* Main emergency cards */}
+        {MAIN_ACTIONS.map((a) =>
+          renderCard(a, a.route + (a.routeParams ? 'fire' : '')),
+        )}
+
+        {/* Secondary row */}
+        <View style={styles.secondaryRow}>
+          {SECONDARY_ACTIONS.map((a) => (
             <TouchableOpacity
-              key={action.route + (action.routeParams ? JSON.stringify(action.routeParams) : '')}
-              style={[styles.rowBtn, { backgroundColor: action.color }]}
-              onPress={() => navigate(action.route, action.routeParams)}
-              activeOpacity={0.85}
+              key={a.route}
+              style={[styles.secondaryCard, { borderLeftColor: a.accentColor }]}
+              onPress={() => navigate(a.route)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.rowBtnIcon}>{action.icon}</Text>
-              <Text style={styles.rowBtnLabelPrimary}>
-                {isNe ? action.labelNe : action.labelEn}
+              <View style={[styles.secondaryIcon, { backgroundColor: `${a.accentColor}20` }]}>
+                <Text style={[styles.secondaryIconText, { color: a.accentColor }]}>
+                  {a.icon}
+                </Text>
+              </View>
+              <Text style={styles.secondaryTitle}>
+                {isNe ? a.labelNe : a.labelEn}
               </Text>
-              <Text style={styles.rowBtnLabelSecondary}>
-                {isNe ? action.labelEn : action.labelNe}
+              <Text style={styles.secondarySubtitle}>
+                {isNe ? a.labelEn : a.labelNe}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Blood Donor */}
+        {/* Emergency Contacts card */}
         <TouchableOpacity
-          style={[styles.bloodBtn, { backgroundColor: BLOOD_ACTION.color }]}
-          onPress={() => navigate(BLOOD_ACTION.route)}
-          activeOpacity={0.85}
+          style={[
+            styles.contactsCard,
+            contacts.length === 0 && styles.contactsCardDashed,
+          ]}
+          onPress={() => navigate('EmergencyContacts')}
+          activeOpacity={0.7}
         >
-          <Text style={styles.rowBtnIcon}>{BLOOD_ACTION.icon}</Text>
-          <View style={styles.btnLabels}>
-            <Text style={styles.btnLabelPrimary}>
-              {isNe ? BLOOD_ACTION.labelNe : BLOOD_ACTION.labelEn}
-            </Text>
-            <Text style={styles.btnLabelSecondary}>
-              {isNe ? BLOOD_ACTION.labelEn : BLOOD_ACTION.labelNe}
-            </Text>
-          </View>
-          <View style={styles.chevron}>
-            <Text style={styles.chevronText}>›</Text>
-          </View>
+          {contacts.length === 0 ? (
+            <View style={styles.contactsEmpty}>
+              <Text style={styles.contactsEmptyTitle}>
+                + {isNe ? 'आपतकालीन सम्पर्क थप्नुहोस्' : 'Add emergency contact'}
+              </Text>
+              <Text style={styles.contactsEmptySub}>
+                {isNe ? 'तपाईंको भरोसाका मान्छेहरू' : 'Your trusted people'}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.contactsFilled}>
+              <View style={styles.contactsHeader}>
+                <Text style={styles.contactsTitle}>
+                  {isNe ? 'आपतकालीन सम्पर्क' : 'Emergency Contacts'}
+                </Text>
+                <Text style={styles.contactsChevron}>›</Text>
+              </View>
+              <View style={styles.contactAvatarRow}>
+                {contacts.map((c, i) => (
+                  <View key={`${c.phone}-${i}`} style={styles.avatarWrap}>
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{initials(c.name)}</Text>
+                    </View>
+                    <Text style={styles.avatarName} numberOfLines={1}>
+                      {c.name.split(' ')[0]}
+                    </Text>
+                  </View>
+                ))}
+                {contacts.length < 3 && (
+                  <View style={styles.avatarWrap}>
+                    <View style={styles.avatarAdd}>
+                      <Text style={styles.avatarAddText}>+</Text>
+                    </View>
+                    <Text style={styles.avatarName}>{isNe ? 'थप' : 'Add'}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Community counter */}
         {trainedCount != null && trainedCount > 0 && (
           <Text style={styles.communityText}>
             {isNe
-              ? `काठमाडौंमा ${trainedCount} जना प्रशिक्षित सहयोगीहरू दर्ता भएका छन्`
-              : `${trainedCount} trained helpers registered in Kathmandu`}
+              ? `• ${trainedCount} जना प्रशिक्षित सहयोगीहरू काठमाडौंमा •`
+              : `• ${trainedCount} trained helpers in Kathmandu •`}
           </Text>
         )}
-
-        <View style={styles.divider} />
-
-        {/* Emergency Contacts card */}
-        <TouchableOpacity
-          style={styles.contactsCard}
-          onPress={() => navigate('EmergencyContacts')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.contactsHeader}>
-            <View>
-              <Text style={styles.contactsTitle}>
-                {isNe ? 'आपतकालीन सम्पर्क' : 'Emergency Contacts'}
-              </Text>
-              <Text style={styles.contactsSubtitle}>
-                {isNe ? 'तपाईंको भरोसाका मान्छेहरू' : 'Your trusted people'}
-              </Text>
-            </View>
-            <Text style={styles.contactsChevron}>›</Text>
-          </View>
-
-          {contacts.length === 0 ? (
-            <View style={styles.contactsEmpty}>
-              <View style={styles.addContactBtn}>
-                <Text style={styles.addContactBtnText}>
-                  + {isNe ? 'सम्पर्क थप्नुहोस्' : 'Add contacts'}
-                </Text>
-              </View>
-              <Text style={styles.contactsHint}>
-                {isNe ? 'आपतकालमा स्वतः सूचित गरिन्छ' : 'Notified automatically in emergencies'}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.contactAvatarRow}>
-              {contacts.map((c, i) => (
-                <View key={`${c.phone}-${i}`} style={styles.contactAvatarWrap}>
-                  <View style={styles.contactAvatar}>
-                    <Text style={styles.contactAvatarText}>{initials(c.name)}</Text>
-                  </View>
-                  <Text style={styles.contactAvatarName} numberOfLines={1}>{c.name.split(' ')[0]}</Text>
-                </View>
-              ))}
-              {contacts.length < 3 && (
-                <View style={styles.contactAvatarWrap}>
-                  <View style={[styles.contactAvatar, styles.contactAvatarAdd]}>
-                    <Text style={styles.contactAvatarAddText}>+</Text>
-                  </View>
-                  <Text style={styles.contactAvatarName}>
-                    {isNe ? 'थप' : 'Add'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-        </TouchableOpacity>
       </ScrollView>
 
-      {/* Fixed bottom quick-dial bar */}
-      <SafeAreaView edges={['bottom']} style={styles.quickDialWrap}>
-        <View style={styles.quickDialBar}>
-          {QUICK_DIAL.map((d) => (
-            <TouchableOpacity
-              key={d.number}
-              style={styles.quickDialBtn}
-              onPress={() => Linking.openURL(`tel:${d.number}`)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.quickDialIcon}>{d.icon}</Text>
-              <Text style={[styles.quickDialNumber, { color: d.color }]}>{d.number}</Text>
-              <Text style={styles.quickDialLabel}>
-                {isNe ? d.labelNe : d.labelEn}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </SafeAreaView>
-
-      {/* Shake countdown overlay */}
+      {/* Shake overlay */}
       {shakeCountdown !== null && (
         <View style={styles.shakeOverlay}>
           <Text style={styles.shakeCount}>{shakeCountdown}</Text>
@@ -307,153 +297,125 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#121212' },
+  root: { flex: 1, backgroundColor: colors.bgPrimary },
 
-  headerWrap: { backgroundColor: '#1A1A1A' },
+  // Header
+  headerWrap: { backgroundColor: colors.bgPrimary },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   appName: {
-    fontSize: fontSizes.xl,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  appSub: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 1 },
-
-  scroll: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xl },
-
-  // Primary health button
-  primaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: H_PRIMARY,
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: spacing.md,
-    shadowColor: colors.emergencyRed,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  btnIcon: { fontSize: 36 },
-  btnLabels: { flex: 1 },
-  btnLabelPrimary: {
-    fontSize: fontSizes.xl,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    lineHeight: 26,
-  },
-  btnLabelSecondary: {
-    fontSize: fontSizes.sm,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 2,
-  },
-  chevron: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chevronText: { color: '#FFFFFF', fontSize: 22, fontWeight: '700', lineHeight: 26 },
-
-  // Police + Fire row
-  row: { flexDirection: 'row', gap: spacing.sm },
-  rowBtn: {
-    flex: 1,
-    minHeight: H_SECONDARY,
-    borderRadius: borderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  rowBtnIcon: { fontSize: 28, marginBottom: 4 },
-  rowBtnLabelPrimary: {
-    fontSize: fontSizes.md,
+    fontSize: fontSizes.lg,
     fontWeight: '800',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    color: colors.emergencyRed,
   },
-  rowBtnLabelSecondary: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    marginTop: 1,
+  langToggle: {
+    flexDirection: 'row',
+    backgroundColor: colors.bgElevated,
+    borderRadius: borderRadius.full,
+    padding: 3,
+  },
+  langBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: borderRadius.full,
+  },
+  langBtnActive: { backgroundColor: '#FFFFFF' },
+  langBtnText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  langBtnTextActive: { color: colors.bgPrimary, fontWeight: '700' },
+
+  // Scroll
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: spacing.md, paddingBottom: spacing.xxl },
+
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
   },
 
-  // Blood donor button
-  bloodBtn: {
+  // ── Action cards ──
+  actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: H_UTILITY + 8,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderLeftWidth: 4,
     borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    padding: 20,
     gap: spacing.md,
-    shadowColor: '#C62828',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    marginBottom: spacing.sm,
   },
-
-  // Community counter
-  communityText: {
-    fontSize: 12,
-    color: colors.lightText,
-    textAlign: 'center',
-    paddingVertical: spacing.xs,
+  cardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  cardIconText: { fontSize: 28 },
+  cardLabels: { flex: 1 },
+  cardTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
+  cardSubtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  cardChevron: { fontSize: 24, color: colors.textMuted, fontWeight: '700' },
 
-  divider: { height: 1, backgroundColor: '#E8E8E8', marginVertical: spacing.xs },
-
-  // Emergency Contacts card
-  contactsCard: {
-    backgroundColor: '#FFFFFF',
+  // ── Secondary row (2-up) ──
+  secondaryRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  secondaryCard: {
+    flex: 1,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderLeftWidth: 4,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
-    gap: spacing.sm,
-  },
-  contactsHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.xs,
   },
-  contactsTitle: { fontSize: fontSizes.md, fontWeight: '800', color: colors.darkText },
-  contactsSubtitle: { fontSize: 12, color: colors.lightText, marginTop: 1 },
-  contactsChevron: { fontSize: 24, color: colors.lightText, fontWeight: '700' },
-  contactsEmpty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xs },
-  addContactBtn: {
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    borderRadius: borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
+  secondaryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  secondaryIconText: { fontSize: 22 },
+  secondaryTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary },
+  secondarySubtitle: { fontSize: 12, color: colors.textSecondary },
+
+  // ── Contacts card ──
+  contactsCard: {
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  contactsCardDashed: {
     borderStyle: 'dashed',
+    borderColor: colors.borderMedium,
   },
-  addContactBtnText: { fontSize: fontSizes.sm, fontWeight: '700', color: colors.lightText },
-  contactsHint: { fontSize: 11, color: colors.lightText },
+  contactsEmpty: { alignItems: 'center', paddingVertical: spacing.md },
+  contactsEmptyTitle: { fontSize: 15, fontWeight: '700', color: colors.textMuted },
+  contactsEmptySub: { fontSize: 12, color: colors.textDim, marginTop: 4 },
+
+  contactsFilled: { gap: spacing.sm },
+  contactsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  contactsTitle: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  contactsChevron: { fontSize: 22, color: colors.textMuted, fontWeight: '700' },
 
   contactAvatarRow: { flexDirection: 'row', gap: spacing.md },
-  contactAvatarWrap: { alignItems: 'center', gap: 4 },
-  contactAvatar: {
+  avatarWrap: { alignItems: 'center', gap: 4 },
+  avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -461,46 +423,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  contactAvatarText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  contactAvatarName: { fontSize: 11, color: colors.darkText, fontWeight: '600' },
-  contactAvatarAdd: {
-    backgroundColor: 'transparent',
+  avatarText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  avatarName: { fontSize: 11, color: colors.textSecondary, fontWeight: '600' },
+  avatarAdd: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
-    borderColor: '#D0D0D0',
+    borderColor: colors.borderMedium,
     borderStyle: 'dashed',
-  },
-  contactAvatarAddText: { fontSize: 20, color: '#D0D0D0', fontWeight: '700' },
-
-  // Quick-dial bottom bar
-  quickDialWrap: { backgroundColor: '#1A1A1A' },
-  quickDialBar: {
-    flexDirection: 'row',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    gap: spacing.xs,
-  },
-  quickDialBtn: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: borderRadius.sm,
-    backgroundColor: '#2A2A2A',
-    minHeight: H_UTILITY,
     justifyContent: 'center',
-    gap: 2,
   },
-  quickDialIcon: { fontSize: 18 },
-  quickDialNumber: {
-    fontSize: fontSizes.lg,
-    fontWeight: '900',
-    lineHeight: 22,
+  avatarAddText: { fontSize: 20, color: colors.borderMedium, fontWeight: '700' },
+
+  // Community counter
+  communityText: {
+    fontSize: 12,
+    color: colors.textDim,
+    textAlign: 'center',
+    paddingVertical: spacing.md,
   },
-  quickDialLabel: { fontSize: 10, color: 'rgba(255,255,255,0.55)', fontWeight: '500' },
 
   // Shake overlay
   shakeOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(21,101,192,0.97)',
+    backgroundColor: 'rgba(59,130,246,0.97)',
     zIndex: 999,
     alignItems: 'center',
     justifyContent: 'center',
